@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LinkMe Hackathon Demo</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+:root{
+  --bg:#f4f4f4;
+  --card:rgba(255,255,255,0.15);
+  --text:#222;
+  --primary:#007bff;
+  --blur:10px;
+}
+body.dark{
+  --bg:#121212;
+  --card:rgba(30,30,30,0.15);
+  --text:#f5f5f5;
+  --primary:#4dabf7;
+}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  transition:0.3s;
+}
+header{
+  padding:15px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  background:var(--card);
+  backdrop-filter:blur(var(--blur));
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+  position:relative;
+  z-index:100;
+}
+header h2{margin:0;font-size:28px; font-weight:bold;}
+.header-left, .header-right{
+  display:flex; align-items:center;
+}
+button, .profile-icon{
+  padding:10px;
+  border:none;
+  border-radius:12px;
+  background:var(--primary);
+  color:white;
+  cursor:pointer;
+  margin-left:5px;
+  transition:0.2s;
+}
+button:hover, .profile-icon:hover{opacity:0.9;}
+.profile-icon{font-size:22px; position:relative;}
+
+/* Nav menu dropdown */
+.menu-icon{
+  font-size:22px;
+  cursor:pointer;
+  background:none;
+  border:none;
+  color:var(--text);
+  margin-left:10px;
+}
+.nav-dropdown{
+  display:none;
+  position:absolute;
+  top:60px;
+  right:15px;
+  background:var(--card);
+  backdrop-filter:blur(var(--blur));
+  border-radius:12px;
+  flex-direction:column;
+  box-shadow:0 8px 32px rgba(0,0,0,0.25);
+  z-index:2000;
+}
+.nav-dropdown button{
+  padding:10px 20px;
+  margin:0;
+  text-align:left;
+  border:none;
+  background:none;
+  color:var(--text);
+}
+.nav-dropdown button:hover{background:rgba(0,0,0,0.1);}
+.nav-dropdown.show{display:flex;}
+
+.card{
+  background:var(--card);
+  backdrop-filter:blur(var(--blur));
+  margin:15px;
+  padding:20px;
+  border-radius:15px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.25);
+}
+input{
+  padding:10px;
+  width:90%;
+  margin:10px 0;
+  border-radius:8px;
+  border:1px solid rgba(0,0,0,0.1);
+  background:rgba(255,255,255,0.3);
+  color:var(--text);
+}
+body.dark input{background:rgba(255,255,255,0.05);}
+#map, #customerMap{height:300px;margin:15px;border-radius:12px;}
+.status{font-weight:bold;margin-top:10px;}
+.rating span{font-size:25px;cursor:pointer;}
+.profile-buttons button{
+  background:#28a745;
+  margin:8px 5px 8px 0;
+}
+.profile-buttons button.text-btn{background:#17a2b8;}
+
+/* FULL SCREEN LOGIN STYLING */
+.login-container{
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background: linear-gradient(135deg,#007bff,#00c6ff);
+}
+.login-card{
+  width:350px;
+  text-align:center;
+  background:rgba(255,255,255,0.15);
+  backdrop-filter:blur(20px);
+  padding:50px 30px;
+  border-radius:25px;
+  box-shadow:0 10px 40px rgba(0,0,0,0.3);
+  color:white;
+  overflow:hidden;
+}
+.login-title{
+  font-size:36px;
+  font-weight:bold;
+  margin-bottom:20px;
+  animation:fadeSlide 1.5s ease forwards;
+}
+.login-subtitle{
+  font-size:16px;
+  margin-bottom:25px;
+  animation:fadeSlide 1.5s ease 0.5s forwards;
+  opacity:0;
+}
+@keyframes fadeSlide{
+  0% {opacity:0; transform:translateY(30px) scale(0.8);}
+  100% {opacity:1; transform:translateY(0) scale(1);}
+}
+.g_id_signin{
+  margin-top:20px;
+  opacity:0;
+  animation:fadeSlide 1.5s ease 1s forwards;
+  display: flex;
+  justify-content: center;
+}
+
+/* MODAL STYLING */
+.modal{
+  display:none;
+  position:fixed;
+  z-index:3000;
+  left:0; top:0;
+  width:100%; height:100%;
+  overflow:auto;
+  background-color:rgba(0,0,0,0.5);
+}
+.modal-content{
+  background:var(--card);
+  backdrop-filter:blur(var(--blur));
+  margin:10% auto;
+  padding:20px;
+  border-radius:15px;
+  width:90%;
+  max-width:500px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.3);
+}
+.close-btn{
+  float:right;
+  font-size:20px;
+  font-weight:bold;
+  cursor:pointer;
+}
+</style>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <button onclick="toggleDark()">🌙</button>
+  </div>
+
+  <h2>LinkMe</h2>
+
+  <div class="header-right">
+    <button class="menu-icon" onclick="toggleNavMenu()">☰</button>
+    <div id="navDropdown" class="nav-dropdown">
+      <button onclick="openModal('privacyModal')">Privacy Policy</button>
+      <button onclick="openModal('aboutModal')">About</button>
+      <button onclick="openModal('supportModal')">Support</button>
+      <button onclick="signOut()">Sign Out</button> 
+    </div>
+  </div>
+</header>
+
+<div id="loginUI" class="login-container">
+  <div class="login-card">
+    <div class="login-title">LinkMe</div>
+    <div class="login-subtitle">Connect instantly with drivers</div>
+    <div id="g_id_onload"
+          data-client_id="738577294530-9g4j8dt04h92r66kqe7mjigakea9veni.apps.googleusercontent.com"
+          data-context="signin"
+          data-callback="handleCredentialResponse"
+          data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin" data-type="standard"></div>
+  </div>
+</div>
+
+<div id="appUI" style="display:none">
+<div class="card">
+<h3>Choose Role</h3>
+<button onclick="showCustomer()">Customer</button>
+<button onclick="showDriver()">Driver</button>
+</div>
+
+<div id="customerUI" style="display:none">
+<div class="card">
+<h3>Customer Profile</h3>
+<input id="cname" placeholder="Name">
+<input id="cphone" placeholder="Phone">
+<div class="profile-buttons">
+  <button onclick="callCustomer()">Call</button>
+  <button class="text-btn" onclick="textCustomer()">Text</button>
+  <button onclick="saveCustomerInfo()">💾 Save Info</button>
+  <button onclick="showCustomerInfo()">ℹ️ Show Details</button>
+</div>
+<button onclick="shareLocation()" style="margin-top:10px;">Share Delivery Location</button>
+<div id="codeDisplay" style="margin-top:10px; font-weight:bold; color:var(--primary);"></div>
+</div>
+
+<div class="card">
+<h3>Delivery Payment</h3>
+<input id="deliveryPrice" placeholder="How much you paid">
+<button onclick="submitPrice()" style="margin-top:10px;">Submit</button>
+<p id="commissionInfo"></p>
+</div>
+
+<div class="card">
+<h3>Driver Live Location</h3>
+<div id="customerMap"></div>
+<p id="driverPos">Waiting for driver...</p>
+<div id="driverInfo" style="margin-top:10px; padding:10px; background:rgba(0,0,0,0.05); border-radius:8px;"></div>
+</div>
+
+<div class="card">
+<h3>Delivery Status</h3>
+<p class="status" id="status">Waiting for driver</p>
+<button onclick="deleteRoute()" style="margin-top:10px;">Delete My Route</button>
+</div>
+
+<div class="card">
+<h3>Rate Driver</h3>
+<div class="rating">
+<span onclick="rate(1)">⭐</span>
+<span onclick="rate(2)">⭐</span>
+<span onclick="rate(3)">⭐</span>
+<span onclick="rate(4)">⭐</span>
+<span onclick="rate(5)">⭐</span>
+</div>
+<p id="ratingResult"></p>
+</div>
+</div>
+
+<div id="driverUI" style="display:none">
+<div class="card">
+<h3>Driver Profile</h3>
+<input id="dname" placeholder="Name">
+<input id="vehicle" placeholder="Vehicle">
+<input id="plate" placeholder="Plate Number">
+<input id="dphone" placeholder="Phone Number">
+<div class="profile-buttons">
+  <button onclick="callDriver()">Call</button>
+  <button class="text-btn" onclick="textDriver()">Text</button>
+  <button onclick="saveDriverInfo()">💾 Save Info</button>
+  <button onclick="showDriverInfo()">ℹ️ Show Details</button>
+</div>
+</div>
+
+<div class="card">
+<h3>Enter Delivery Code</h3>
+<input id="codeInput" placeholder="DLV-1234">
+<button onclick="loadDelivery()" style="margin-top:10px;">Find Delivery</button>
+</div>
+
+<div id="map"></div>
+
+<div class="card">
+<button onclick="navigate()">Navigate</button>
+<button onclick="startDriving()">Start Driving</button>
+<button onclick="completeDelivery()">Complete Delivery</button>
+</div>
+
+<div class="card">
+<h3>Driver Earnings</h3>
+<p id="earnings">0 RWF</p>
+<button onclick="payCommission()">Pay Commission (MoMo)</button>
+</div>
+</div>
+
+<div id="privacyModal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeModal('privacyModal')">&times;</span>
+    <h3>Privacy Policy</h3>
+    <p>We respect your privacy. Customer and driver locations are stored only temporarily and can be deleted anytime. Your personal info is never shared.</p>
+  </div>
+</div>
+
+<div id="aboutModal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeModal('aboutModal')">&times;</span>
+    <h3>About LinkMe</h3>
+    <p>LinkMe is a lightweight real-time delivery platform connecting drivers and customers instantly. Designed for speed, transparency, and security.</p>
+  </div>
+</div>
+
+<div id="supportModal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeModal('supportModal')">&times;</span>
+    <h3>Support</h3>
+    <p>For assistance, contact support@linkme.app or use the in-app chat. We are here to help you 24/7.</p>
+  </div>
+</div>
+
+<script>
+// --- CORE LOGIC ---
+let lat, lng, code, driverWatch, map, marker, customerMap, customerMarker;
+const syncChannel = new BroadcastChannel('linkme_hackathon_sync');
+
+// GOOGLE LOGIN
+function handleCredentialResponse(response){
+    document.getElementById("loginUI").style.display="none";
+    document.getElementById("appUI").style.display="block";
+}
+
+// UI toggles
+function toggleDark(){document.body.classList.toggle("dark");}
+
+function showCustomer(){
+    document.getElementById("customerUI").style.display="block"; 
+    document.getElementById("driverUI").style.display="none";
+    if(!customerMap) {
+        setTimeout(() => {
+            customerMap = L.map('customerMap').setView([ -1.9441, 30.0619 ], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(customerMap);
+            customerMarker = L.marker([-1.9441, 30.0619]).addTo(customerMap).bindPopup("Driver Position");
+        }, 100);
+    }
+}
+
+function showDriver(){
+    document.getElementById("driverUI").style.display="block"; 
+    document.getElementById("customerUI").style.display="none";
+    if(!map) {
+        setTimeout(() => {
+            map = L.map('map').setView([ -1.9441, 30.0619 ], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            marker = L.marker([-1.9441, 30.0619]).addTo(map).bindPopup("You (Driver)");
+        }, 100);
+    }
+}
+
+// MODAL FUNCTIONS
+function openModal(id){document.getElementById(id).style.display="block";}
+function closeModal(id){document.getElementById(id).style.display="none";}
+
+// SIGN OUT FUNCTION
+function signOut(){
+    if(driverWatch){navigator.geolocation.clearWatch(driverWatch);}
+    location.reload(); 
+}
+
+// NAV DROPDOWN
+function toggleNavMenu(){
+    document.getElementById('navDropdown').classList.toggle('show');
+}
+
+// PROFILE LOGIC
+function saveCustomerInfo(){
+    const info = { name: document.getElementById('cname').value, phone: document.getElementById('cphone').value };
+    localStorage.setItem('customer_profile', JSON.stringify(info));
+    alert("Customer Profile Saved!");
+}
+
+function showCustomerInfo(){
+    const info = JSON.parse(localStorage.getItem('customer_profile'));
+    if(info) alert(`Saved Info:\nName: ${info.name}\nPhone: ${info.phone}`);
+    else alert("No info saved.");
+}
+
+function saveDriverInfo(){
+    const info = { 
+        name: document.getElementById('dname').value, 
+        vehicle: document.getElementById('vehicle').value,
+        plate: document.getElementById('plate').value,
+        phone: document.getElementById('dphone').value
+    };
+    localStorage.setItem('driver_profile', JSON.stringify(info));
+    alert("Driver Profile Saved!");
+}
+
+function showDriverInfo(){
+    const info = JSON.parse(localStorage.getItem('driver_profile'));
+    if(info) alert(`Saved Info:\nName: ${info.name}\nVehicle: ${info.vehicle}\nPlate: ${info.plate}\nPhone: ${info.phone}`);
+    else alert("No info saved.");
+}
+
+// DELIVERY SYNC
+function shareLocation() {
+    navigator.geolocation.getCurrentPosition(pos => {
+        const dlvCode = "DLV-" + Math.floor(1000 + Math.random() * 9000);
+        const data = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            customerName: document.getElementById('cname').value || "Guest"
+        };
+        localStorage.setItem(dlvCode, JSON.stringify(data));
+        document.getElementById('codeDisplay').innerText = "SHARE THIS CODE: " + dlvCode;
+        alert("Location shared! Waiting for a driver.");
+    });
+}
+
+function loadDelivery() {
+    const codeInput = document.getElementById('codeInput').value;
+    const data = localStorage.getItem(codeInput);
+    if(data) {
+        const dlv = JSON.parse(data);
+        L.marker([dlv.lat, dlv.lng]).addTo(map).bindPopup("Pickup: " + dlv.customerName).openPopup();
+        map.setView([dlv.lat, dlv.lng], 15);
+        
+        // Notify Customer side
+        const dProfile = JSON.parse(localStorage.getItem('driver_profile')) || { name: "A Driver" };
+        syncChannel.postMessage({ type: 'DRIVER_JOINED', profile: dProfile });
+        alert("Delivery Found!");
+    } else {
+        alert("Code not found.");
+    }
+}
+
+function startDriving() {
+    if (navigator.geolocation) {
+        driverWatch = navigator.geolocation.watchPosition(pos => {
+            const dLat = pos.coords.latitude;
+            const dLng = pos.coords.longitude;
+            marker.setLatLng([dLat, dLng]);
+            map.setView([dLat, dLng]);
+
+            // Sync to Customer tab
+            syncChannel.postMessage({ type: 'TRACKING', lat: dLat, lng: dLng });
+        });
+        alert("Journey Started! The customer is now tracking you.");
+    }
+}
+
+function completeDelivery() {
+    navigator.geolocation.clearWatch(driverWatch);
+    syncChannel.postMessage({ type: 'ARRIVED' });
+    document.getElementById('earnings').innerText = document.getElementById('deliveryPrice').value + " RWF";
+    alert("Delivery Completed!");
+}
+
+// REAL-TIME SYNC HANDLER
+syncChannel.onmessage = (event) => {
+    const msg = event.data;
+    if(msg.type === 'DRIVER_JOINED') {
+        document.getElementById('status').innerText = "Driver found: " + msg.profile.name;
+        document.getElementById('driverInfo').innerHTML = `<b>Driver:</b> ${msg.profile.name}<br><b>Vehicle:</b> ${msg.profile.vehicle || 'N/A'}<br><b>Plate:</b> ${msg.profile.plate || 'N/A'}`;
+    }
+    if(msg.type === 'TRACKING') {
+        customerMarker.setLatLng([msg.lat, msg.lng]);
+        customerMap.setView([msg.lat, msg.lng]);
+        document.getElementById('driverPos').innerText = "Driver is moving...";
+        document.getElementById('status').innerText = "Driver on the way!";
+    }
+    if(msg.type === 'ARRIVED') {
+        document.getElementById('status').innerText = "Delivered!";
+        document.getElementById('driverPos').innerText = "Driver has arrived at destination.";
+        alert("Your driver has arrived!");
+    }
+};
+
+// OTHER UTILS
+function callCustomer() { window.open('tel:' + document.getElementById('cphone').value); }
+function textCustomer() { window.open('sms:' + document.getElementById('cphone').value); }
+function callDriver() { window.open('tel:' + document.getElementById('dphone').value); }
+function textDriver() { window.open('sms:' + document.getElementById('dphone').value); }
+
+function submitPrice() {
+    const val = document.getElementById('deliveryPrice').value;
+    document.getElementById('commissionInfo').innerText = "Commission (10%): " + (val * 0.1) + " RWF";
+}
+
+function rate(n) { document.getElementById('ratingResult').innerText = "You rated " + n + " stars!"; }
+
+function deleteRoute() {
+    localStorage.clear();
+    location.reload();
+}
+
+function navigate() {
+    alert("Opening Navigation...");
+    // In a real app, this would open Google Maps External URL
+}
+
+function payCommission() {
+    alert("Redirecting to MoMo payment...");
+}
+
+window.onclick = function(event) {
+  if (!event.target.matches('.menu-icon')) {
+    document.getElementById('navDropdown').classList.remove('show');
+  }
+}
+</script>
+
+</body>
+</html>
